@@ -2,10 +2,9 @@ import PropTypes from 'prop-types'
 import React from 'react'
 import SourceRender from 'react-source-render'
 
-import { updateForKeys } from 'docs/src/hoc'
 import { babelConfig, externals } from './renderConfig'
 
-const resolver = (importPath, { displayName }) => {
+export const resolver = (importPath, { displayName }) => {
   if (externals[importPath]) return externals[importPath]
 
   throw new Error(
@@ -42,4 +41,6 @@ ComponentExampleRenderSource.propTypes = {
   sourceCode: PropTypes.string.isRequired,
 }
 
-export default updateForKeys(['sourceCode'])(ComponentExampleRenderSource)
+const areEqual = (prevProps, nextProps) => prevProps.sourceCode === nextProps.sourceCode
+
+export default React.memo(ComponentExampleRenderSource, areEqual)

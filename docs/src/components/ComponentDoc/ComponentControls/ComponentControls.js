@@ -1,22 +1,10 @@
+import _ from 'lodash'
 import PropTypes from 'prop-types'
 import React from 'react'
-import universal from 'react-universal-component'
-import { Menu } from 'semantic-ui-react'
+import { Menu, Icon } from 'semantic-ui-react'
 
-import { updateForKeys } from 'docs/src/hoc'
-import { isBrowser } from 'src/lib'
 import ComponentControlsCopyLink from './ComponentControlsCopyLink'
-import ComponentControlsEditCode from './ComponentControlsEditCode'
-import ComponentControlsMaximize from './ComponentControlsMaximize'
-import ComponentControlsShowHtml from './ComponentControlsShowHtml'
-
-const ComponentControlsCodeSandbox = isBrowser()
-  ? universal(import('./ComponentControlsCodeSandbox'), {
-    loading: () => (
-      <Menu.Item disabled icon={{ loading: true, name: 'spinner', title: 'Loading...' }} />
-    ),
-  })
-  : () => null
+import ComponentControlsCodeSandbox from './ComponentControlsCodeSandbox'
 
 const ComponentControls = (props) => {
   const {
@@ -30,13 +18,28 @@ const ComponentControls = (props) => {
     onShowHTML,
     onShowCode,
   } = props
+  const externalHref = `/maximize/${_.kebabCase(examplePath.split('/').slice(-1))}`
 
   return (
     <Menu color='green' compact icon='labeled' size='tiny' text>
-      <ComponentControlsEditCode active={showCode} onClick={onShowCode} />
-      <ComponentControlsShowHtml active={showHTML} disabled={disableHtml} onClick={onShowHTML} />
+      <Menu.Item active={showCode} onClick={onShowCode}>
+        <Icon color={showCode ? 'green' : 'grey'} fitted name='code' size='large' />
+        Try it
+      </Menu.Item>
+      <Menu.Item
+        active={showHTML}
+        disabled={disableHtml}
+        onClick={onShowHTML}
+        title={disableHtml ? 'HTML preview is disabled for this example' : ''}
+      >
+        <Icon color={showHTML ? 'green' : 'grey'} size='large' name='html5' fitted />
+        Show HTML
+      </Menu.Item>
       <ComponentControlsCodeSandbox exampleCode={exampleCode} />
-      <ComponentControlsMaximize examplePath={examplePath} />
+      <Menu.Item href={externalHref} target='_blank'>
+        <Icon color='grey' fitted name='window maximize' size='large' />
+        Maximize
+      </Menu.Item>
       <ComponentControlsCopyLink anchorName={anchorName} onClick={onCopyLink} />
     </Menu>
   )
@@ -54,4 +57,4 @@ ComponentControls.propTypes = {
   showHTML: PropTypes.bool,
 }
 
-export default updateForKeys(['exampleCode', 'showCode', 'showHTML'])(ComponentControls)
+export default React.memo(ComponentControls)

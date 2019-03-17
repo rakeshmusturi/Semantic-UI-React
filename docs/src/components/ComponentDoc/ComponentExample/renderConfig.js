@@ -5,14 +5,6 @@ import * as SUIR from 'semantic-ui-react'
 
 export const babelConfig = {
   presets: [
-    [
-      'env',
-      {
-        targets: {
-          browsers: ['last 4 versions', 'not dead'],
-        },
-      },
-    ],
     ['stage-1', { decoratorsLegacy: true }],
   ],
 }

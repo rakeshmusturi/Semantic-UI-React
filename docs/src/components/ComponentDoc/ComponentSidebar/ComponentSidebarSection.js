@@ -3,8 +3,6 @@ import PropTypes from 'prop-types'
 import React, { PureComponent } from 'react'
 import { Accordion, Icon, Menu } from 'semantic-ui-react'
 
-import { examplePathToHash } from 'docs/src/utils'
-
 export default class ComponentSidebarSection extends PureComponent {
   static propTypes = {
     activePath: PropTypes.string,
@@ -19,44 +17,44 @@ export default class ComponentSidebarSection extends PureComponent {
     onTitleClick: PropTypes.func,
   }
 
-  constructor(props) {
-    super(props)
-    this.state = {
-      isActiveByProps: this.isActiveAccordion(),
-    }
-  }
+  // constructor(props) {
+  //   super(props)
+  //   this.state = {
+  //     isActiveByProps: this.isActiveAccordion(),
+  //   }
+  // }
+  //
+  // componentWillReceiveProps(nextProps) {
+  //   const isActiveByProps = this.isActiveAccordion(nextProps)
+  //   const didCloseByProps = this.state.isActiveByProps && !isActiveByProps
+  //
+  //   // We allow the user to open accordions, but we close them when we scroll passed them
+  //   this.setState(prevState => ({
+  //     isActiveByProps,
+  //     isActiveByUser: didCloseByProps ? false : prevState.isActiveByUser,
+  //   }))
+  // }
 
-  componentWillReceiveProps(nextProps) {
-    const isActiveByProps = this.isActiveAccordion(nextProps)
-    const didCloseByProps = this.state.isActiveByProps && !isActiveByProps
-
-    // We allow the user to open accordions, but we close them when we scroll passed them
-    this.setState(prevState => ({
-      isActiveByProps,
-      isActiveByUser: didCloseByProps ? false : prevState.isActiveByUser,
-    }))
-  }
-
-  handleItemClick = examplePath => (e) => {
+  handleItemClick = (examplePath) => (e) => {
     _.invoke(this.props, 'onItemClick', e, { examplePath })
   }
+  //
+  // handleTitleClick = () => {
+  //   this.setState(prevState => ({ isActiveByUser: !prevState.isActiveByUser }))
+  // }
 
-  handleTitleClick = () => {
-    this.setState(prevState => ({ isActiveByUser: !prevState.isActiveByUser }))
-  }
-
-  isActiveAccordion = (props = this.props) =>
-    (props.examples || []).findIndex((item) => {
-      const exampleHash = examplePathToHash(item.examplePath)
-      return exampleHash === props.activePath
-    }) !== -1
+  // isActiveAccordion = (props = this.props) =>
+  //   (props.examples || []).findIndex((item) => {
+  //     const exampleHash = examplePathToHash(item.examplePath)
+  //     return exampleHash === props.activePath
+  //   }) !== -1
 
   render() {
     const { activePath, examples, sectionName } = this.props
-    const { isActiveByProps, isActiveByUser } = this.state
+    // const { isActiveByProps, isActiveByUser } = this.state
 
-    const active = isActiveByUser || isActiveByProps
-
+    const active = !!_.findKey(examples, { examplePath: activePath })
+    // console.log(activePath, examples, active)
     return (
       <Menu.Item>
         <Accordion.Title active={active} onClick={this.handleTitleClick}>
@@ -64,14 +62,16 @@ export default class ComponentSidebarSection extends PureComponent {
           <Icon name='dropdown' />
         </Accordion.Title>
         <Accordion.Content as={Menu.Menu} active={active}>
-          {_.map(examples, ({ title, examplePath }) => (
-            <Menu.Item
-              key={examplePath}
-              active={activePath === examplePathToHash(examplePath)}
-              content={title}
-              onClick={this.handleItemClick(examplePath)}
-            />
-          ))}
+          {_.map(examples, ({ title, examplePath }) => {
+            return (
+              <Menu.Item
+                key={examplePath}
+                active={activePath === examplePath}
+                content={title}
+                onClick={this.handleItemClick(examplePath)}
+              />
+            )
+          })}
         </Accordion.Content>
       </Menu.Item>
     )

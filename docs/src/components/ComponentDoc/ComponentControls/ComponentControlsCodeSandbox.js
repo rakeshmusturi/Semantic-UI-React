@@ -2,10 +2,11 @@ import * as _ from 'lodash'
 import PropTypes from 'prop-types'
 import * as React from 'react'
 import CodeSandboxer from 'react-codesandboxer'
+import VisibilitySensor from 'react-visibility-sensor'
 import { Menu } from 'semantic-ui-react'
 
 import { externals } from 'docs/src/components/ComponentDoc/ComponentExample/renderConfig'
-import { updateForKeys } from 'docs/src/hoc'
+import shallowEqual from 'shallowequal'
 
 const appTemplate = `import React from "react";
 import ReactDOM from "react-dom";
@@ -50,7 +51,7 @@ ReactDOM.render(
 `
 const dependencies = _.mapValues(externals, () => 'latest')
 
-class ComponentControlsShowCode extends React.Component {
+class ComponentControlsCodeSandbox extends React.Component {
   static propTypes = {
     exampleCode: PropTypes.string.isRequired,
   }
@@ -58,6 +59,7 @@ class ComponentControlsShowCode extends React.Component {
   state = {
     exampleCode: '',
     sandboxUrl: '',
+    visible: false,
   }
 
   static getDerivedStateFromProps(props, state) {
@@ -67,15 +69,22 @@ class ComponentControlsShowCode extends React.Component {
     }
   }
 
+  shouldComponentUpdate(nextProps, nextState) {
+    // CodeSandboxer is quite heavy component, we should skip updates on our side
+    return this.props.exampleCode !== nextProps.exampleCode || !shallowEqual(this.state, nextState)
+  }
+
   handleDeploy = (embedUrl, sandboxId) => {
     const sandboxUrl = `https://codesandbox.io/s/${sandboxId}?module=/example.js`
 
     this.setState({ sandboxUrl })
   }
 
+  handleVisibility = (visible) => this.setState({ visible })
+
   render() {
     const { exampleCode } = this.props
-    const { sandboxUrl } = this.state
+    const { sandboxUrl, visible } = this.state
 
     if (sandboxUrl) {
       return (
@@ -91,36 +100,47 @@ class ComponentControlsShowCode extends React.Component {
     }
 
     return (
-      <CodeSandboxer
-        afterDeploy={this.handleDeploy}
-        examplePath='/'
-        example={exampleCode}
-        dependencies={dependencies}
-        name='semantic-ui-react-example'
-        providedFiles={{
-          'index.js': { content: appTemplate },
-        }}
-        skipRedirect
-        template='create-react-app'
+      <VisibilitySensor
+        active={!visible}
+        delayedCall
+        partialVisibility
+        onChange={this.handleVisibility}
       >
-        {({ isLoading, isDeploying }) => {
-          const loading = isLoading || isDeploying
+        {visible ? (
+          <CodeSandboxer
+            afterDeploy={this.handleDeploy}
+            examplePath='/'
+            example={exampleCode}
+            dependencies={dependencies}
+            name='semantic-ui-react-example'
+            providedFiles={{
+              'index.js': { content: appTemplate },
+            }}
+            skipRedirect
+            template='create-react-app'
+          >
+            {({ isLoading, isDeploying }) => {
+              const loading = isLoading || isDeploying
 
-          return (
-            <Menu.Item
-              as='a'
-              content={loading ? 'Exporting...' : 'CodeSandbox'}
-              icon={{
-                loading,
-                name: loading ? 'spinner' : 'connectdevelop',
-              }}
-              title='Export to CodeSandbox'
-            />
-          )
-        }}
-      </CodeSandboxer>
+              return (
+                <Menu.Item
+                  as='a'
+                  content={loading ? 'Exporting...' : 'CodeSandbox'}
+                  icon={{
+                    loading,
+                    name: loading ? 'spinner' : 'connectdevelop',
+                  }}
+                  title='Export to CodeSandbox'
+                />
+              )
+            }}
+          </CodeSandboxer>
+        ) : (
+          <Menu.Item as='a' content='CodeSandbox' icon={{ loading: true, name: 'spinner' }} />
+        )}
+      </VisibilitySensor>
     )
   }
 }
 
-export default updateForKeys(['exampleCode'])(ComponentControlsShowCode)
+export default ComponentControlsCodeSandbox

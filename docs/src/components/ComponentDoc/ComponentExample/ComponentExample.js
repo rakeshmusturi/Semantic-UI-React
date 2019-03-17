@@ -4,16 +4,54 @@ import _ from 'lodash'
 import PropTypes from 'prop-types'
 import React, { PureComponent } from 'react'
 import { withRouteData, withRouter } from 'react-static'
-import { Grid, Visibility } from 'semantic-ui-react'
+import { Grid, Placeholder, Visibility } from 'semantic-ui-react'
 
 import { examplePathToHash, getFormattedHash, repoURL, scrollToAnchor } from 'docs/src/utils'
 import CarbonAdNative from 'docs/src/components/CarbonAd/CarbonAdNative'
 
+import SourceRender from 'react-source-render'
 import ComponentControls from '../ComponentControls'
+import ComponentDocContext from '../ComponentDocContext'
 import ComponentExampleRenderEditor from './ComponentExampleRenderEditor'
 import ComponentExampleRenderHtml from './ComponentExampleRenderHtml'
-import ComponentExampleRenderSource from './ComponentExampleRenderSource'
+import ComponentExampleRenderSource, { resolver } from './ComponentExampleRenderSource'
 import ComponentExampleTitle from './ComponentExampleTitle'
+import { babelConfig } from './renderConfig'
+import C from './C'
+import NoSsr from '../../NoSSR'
+
+class DelayRender extends React.Component {
+  constructor() {
+    super()
+    this.state = { ready: true }
+  }
+
+  componentWillMount() {
+    const { delay, onRender } = this.props
+    const d = parseInt(delay, 10)
+    if (d && d > 0) {
+      this.setState({ ready: false })
+      this.timeout = setTimeout(() => {
+        this.setState({ ready: true })
+      }, delay)
+    } else {
+      this.setState({ ready: true })
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.timeout) {
+      clearTimeout(this.timeout)
+    }
+  }
+
+  render() {
+    if (this.state.ready) {
+      return this.props.children
+    }
+    return null
+  }
+}
 
 const childrenStyle = {
   paddingBottom: 0,
@@ -41,10 +79,6 @@ const componentControlsStyle = {
 class ComponentExample extends PureComponent {
   state = {}
 
-  static contextTypes = {
-    onPassed: PropTypes.func,
-  }
-
   static propTypes = {
     children: PropTypes.node,
     description: PropTypes.node,
@@ -55,6 +89,7 @@ class ComponentExample extends PureComponent {
     history: PropTypes.object.isRequired,
     location: PropTypes.object.isRequired,
     match: PropTypes.object.isRequired,
+    onVisibilityChange: PropTypes.func.isRequired,
     renderHtml: PropTypes.bool,
     suiVersion: PropTypes.string,
     title: PropTypes.node,
@@ -64,14 +99,14 @@ class ComponentExample extends PureComponent {
     renderHtml: true,
   }
 
-  componentWillMount() {
-    const { examplePath } = this.props
-    this.anchorName = examplePathToHash(examplePath)
+  constructor(props) {
+    super(props)
 
-    this.setState({
+    this.anchorName = examplePathToHash(props.examplePath)
+    this.state = {
       showCode: this.isActiveHash(),
       sourceCode: this.getOriginalSourceCode(),
-    })
+    }
   }
 
   componentWillReceiveProps(nextProps) {
@@ -140,9 +175,7 @@ class ComponentExample extends PureComponent {
   }
 
   handlePass = () => {
-    const { title } = this.props
-
-    if (title) _.invoke(this.context, 'onPassed', null, this.props)
+    if (this.props.title) this.props.onPassed(this.props.examplePath)
   }
 
   getGithubEditHref = () => {
@@ -176,7 +209,7 @@ class ComponentExample extends PureComponent {
     this.setState({ sourceCode })
   }, 30)
 
-  handleRenderError = error => this.setState({ error: error.toString() })
+  handleRenderError = (error) => this.setState({ error: error.toString() })
 
   handleRenderSuccess = (error, { markup }) => this.setState({ error, htmlMarkup: markup })
 
@@ -194,78 +227,72 @@ class ComponentExample extends PureComponent {
 
     const isActive = this.isActiveHash() || this.isActiveState()
 
+    //     <Visibility
+    //   once={false}
+    //   onTopPassed={this.handlePass}
+    //   onTopPassedReverse={this.handlePass}
+    //   style={{ margin: '2rem 0' }}
+    // >
+    //   Ensure anchor links don't occlude card shadow effect
     return (
-      <Visibility
-        once={false}
-        onTopPassed={this.handlePass}
-        onTopPassedReverse={this.handlePass}
-        style={{ margin: '2rem 0' }}
-      >
-        {/* Ensure anchor links don't occlude card shadow effect */}
-        <div id={this.anchorName} style={{ paddingTop: '1rem' }}>
-          <Grid className={cx('docs-example', { active: isActive })} padded='vertically'>
-            <Grid.Row columns='equal'>
-              <Grid.Column>
-                <ComponentExampleTitle
-                  description={description}
-                  title={title}
-                  suiVersion={suiVersion}
-                />
-              </Grid.Column>
-              <Grid.Column textAlign='right' style={componentControlsStyle}>
-                <ComponentControls
-                  anchorName={this.anchorName}
-                  disableHtml={!renderHtml}
-                  exampleCode={sourceCode}
-                  examplePath={examplePath}
-                  onCopyLink={this.handleDirectLinkClick}
-                  onShowCode={this.handleShowCodeClick}
-                  onShowHTML={this.handleShowHTMLClick}
-                  showCode={showCode}
-                  showHTML={showHTML}
-                />
-              </Grid.Column>
-            </Grid.Row>
-
-            {children && (
-              <Grid.Row columns={1} style={childrenStyle}>
-                <Grid.Column>{children}</Grid.Column>
-              </Grid.Row>
-            )}
-
-            <Grid.Column
-              width={16}
-              className={`rendered-example ${this.getKebabExamplePath()}`}
-              style={renderedExampleStyle}
-            >
-              <ComponentExampleRenderSource
-                displayName={displayName}
-                onError={this.handleRenderError}
-                onSuccess={this.handleRenderSuccess}
-                renderHtml={renderHtml}
-                sourceCode={sourceCode}
+      <div id={this.anchorName} style={{ paddingTop: '1rem' }}>
+        <Grid className={cx('docs-example', { active: isActive })} padded='vertically'>
+          <Grid.Row columns='equal'>
+            <Grid.Column>
+              <ComponentExampleTitle
+                description={description}
+                title={title}
+                suiVersion={suiVersion}
               />
             </Grid.Column>
-            {(showCode || showHTML) && (
-              <Grid.Column width={16} style={editorStyle}>
-                {showCode && (
-                  <ComponentExampleRenderEditor
-                    githubEditHref={this.getGithubEditHref()}
-                    originalValue={this.getOriginalSourceCode()}
-                    value={sourceCode}
-                    error={error}
-                    onChange={this.handleChangeCode}
-                  />
-                )}
-                {showHTML && <ComponentExampleRenderHtml value={htmlMarkup} />}
-              </Grid.Column>
-            )}
-            {isActive && !error && <CarbonAdNative inverted={this.isActiveState()} />}
-          </Grid>
-        </div>
-      </Visibility>
+            <Grid.Column textAlign='right' style={componentControlsStyle}>
+              <ComponentControls
+                anchorName={this.anchorName}
+                disableHtml={!renderHtml}
+                exampleCode={sourceCode}
+                examplePath={examplePath}
+                onCopyLink={this.handleDirectLinkClick}
+                onShowCode={this.handleShowCodeClick}
+                onShowHTML={this.handleShowHTMLClick}
+                showCode={showCode}
+                showHTML={showHTML}
+              />
+            </Grid.Column>
+          </Grid.Row>
+
+          {children && (
+            <Grid.Row columns={1} style={childrenStyle}>
+              <Grid.Column>{children}</Grid.Column>
+            </Grid.Row>
+          )}
+
+          <NoSsr>
+            <C
+              examplePath={this.props.examplePath}
+              showCode={showCode}
+              onVisibilityChange={this.props.onVisibilityChange}
+              sourceCode={sourceCode}
+              showHTML={showHTML}
+              renderHtml={renderHtml}
+              title={this.props.title}
+            />
+          </NoSsr>
+          {isActive && !error && <CarbonAdNative inverted={this.isActiveState()} />}
+        </Grid>
+      </div>
     )
+    {
+      /* </Visibility> */
+    }
   }
 }
 
-export default withRouteData(withRouter(ComponentExample))
+const Wrapper = (props) => (
+  <ComponentDocContext.Consumer>
+    {(contextProps) => {
+      return <ComponentExample {...props} {...contextProps} />
+    }}
+  </ComponentDocContext.Consumer>
+)
+
+export default Wrapper
