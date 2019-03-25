@@ -4,6 +4,7 @@ import _ from 'lodash'
 import PropTypes from 'prop-types'
 import React, { PureComponent } from 'react'
 import { withRouteData, withRouter } from 'react-static'
+import VisibilitySensor from 'react-visibility-sensor'
 import { Grid, Placeholder, Visibility } from 'semantic-ui-react'
 
 import { examplePathToHash, getFormattedHash, repoURL, scrollToAnchor } from 'docs/src/utils'
@@ -109,32 +110,26 @@ class ComponentExample extends PureComponent {
     }
   }
 
-  componentWillReceiveProps(nextProps) {
-    const { examplePath, exampleSources, location } = nextProps
+  static getDerivedStateFromProps(props, state) {
+    const { examplePath, exampleSources } = props
     const nextSourceCode = exampleSources[examplePath]
 
-    // deactivate examples when switching from one to the next
-    if (this.isActiveHash() && this.isActiveState() && this.props.location.hash !== location.hash) {
-      this.clearActiveState()
-    }
-
     // for local environment
-    if (process.env.NODE_ENV !== 'production' && this.getOriginalSourceCode() !== nextSourceCode) {
-      this.setState({ sourceCode: nextSourceCode })
+    if (process.env.NODE_ENV !== 'production' && state.sourceCode !== nextSourceCode) {
+      return { sourceCode: nextSourceCode }
+    }
+
+    return {
+      wasEverVisible: state.wasEverVisible ? true : state.visible,
     }
   }
 
-  clearActiveState = () => {
-    this.setState({
-      showCode: false,
-      showHTML: false,
-    })
-  }
-
-  isActiveState = () => {
-    const { showCode, showHTML } = this.state
-
-    return showCode || showHTML
+  componentDidUpdate(prevProps) {
+    // deactivate examples when switching from one to the next
+    if (this.isActiveHash() && this.state.showCode && this.props.location.hash !== prevProps.location.hash) {
+      // eslint-disable-next-line react/no-did-update-set-state
+      this.setState({ showCode: false })
+    }
   }
 
   isActiveHash = () => {
@@ -143,7 +138,7 @@ class ComponentExample extends PureComponent {
   }
 
   updateHash = () => {
-    if (this.isActiveState()) this.setHashAndScroll()
+    if (this.state.showCode) this.setHashAndScroll()
   }
 
   setHashAndScroll = () => {
@@ -160,18 +155,7 @@ class ComponentExample extends PureComponent {
 
   handleShowCodeClick = (e) => {
     e.preventDefault()
-
-    const { showCode } = this.state
-
-    this.setState({ showCode: !showCode }, this.updateHash)
-  }
-
-  handleShowHTMLClick = (e) => {
-    e.preventDefault()
-
-    const { showHTML } = this.state
-
-    this.setState({ showHTML: !showHTML }, this.updateHash)
+    this.setState(prevState => ({ showCode: !prevState.showCode }), this.updateHash)
   }
 
   handlePass = () => {
@@ -209,6 +193,8 @@ class ComponentExample extends PureComponent {
     this.setState({ sourceCode })
   }, 30)
 
+  handleVisibility = (visible) => this.setState({ visible })
+
   handleRenderError = (error) => this.setState({ error: error.toString() })
 
   handleRenderSuccess = (error, { markup }) => this.setState({ error, htmlMarkup: markup })
@@ -223,9 +209,9 @@ class ComponentExample extends PureComponent {
       suiVersion,
       title,
     } = this.props
-    const { error, htmlMarkup, showCode, showHTML, sourceCode } = this.state
+    const { error, htmlMarkup, showCode, sourceCode, visible, wasEverVisible } = this.state
 
-    const isActive = this.isActiveHash() || this.isActiveState()
+    const isActive = this.isActiveHash() || this.state.showCode
 
     //     <Visibility
     //   once={false}
@@ -235,55 +221,57 @@ class ComponentExample extends PureComponent {
     // >
     //   Ensure anchor links don't occlude card shadow effect
     return (
-      <div id={this.anchorName} style={{ paddingTop: '1rem' }}>
-        <Grid className={cx('docs-example', { active: isActive })} padded='vertically'>
-          <Grid.Row columns='equal'>
-            <Grid.Column>
-              <ComponentExampleTitle
-                description={description}
-                title={title}
-                suiVersion={suiVersion}
-              />
-            </Grid.Column>
-            <Grid.Column textAlign='right' style={componentControlsStyle}>
-              <ComponentControls
-                anchorName={this.anchorName}
-                disableHtml={!renderHtml}
-                exampleCode={sourceCode}
-                examplePath={examplePath}
-                onCopyLink={this.handleDirectLinkClick}
-                onShowCode={this.handleShowCodeClick}
-                onShowHTML={this.handleShowHTMLClick}
-                showCode={showCode}
-                showHTML={showHTML}
-              />
-            </Grid.Column>
-          </Grid.Row>
-
-          {children && (
-            <Grid.Row columns={1} style={childrenStyle}>
-              <Grid.Column>{children}</Grid.Column>
+      <VisibilitySensor
+        delayedCall
+        partialVisibility
+        onChange={this.handleVisibility}
+      >
+        <div id={this.anchorName} style={{ paddingTop: '1rem' }}>
+          <Grid className={cx('docs-example', { active: isActive })} padded='vertically'>
+            <Grid.Row columns='equal'>
+              <Grid.Column>
+                <ComponentExampleTitle
+                  description={description}
+                  title={title}
+                  suiVersion={suiVersion}
+                />
+              </Grid.Column>
+              <Grid.Column textAlign='right' style={componentControlsStyle}>
+                <ComponentControls
+                  anchorName={this.anchorName}
+                  disableHtml={!renderHtml}
+                  exampleCode={sourceCode}
+                  examplePath={examplePath}
+                  onCopyLink={this.handleDirectLinkClick}
+                  onShowCode={this.handleShowCodeClick}
+                  showCode={showCode}
+                  visible={wasEverVisible}
+                />
+              </Grid.Column>
             </Grid.Row>
-          )}
 
-          <NoSsr>
-            <C
-              examplePath={this.props.examplePath}
-              showCode={showCode}
-              onVisibilityChange={this.props.onVisibilityChange}
-              sourceCode={sourceCode}
-              showHTML={showHTML}
-              renderHtml={renderHtml}
-              title={this.props.title}
-            />
-          </NoSsr>
-          {isActive && !error && <CarbonAdNative inverted={this.isActiveState()} />}
-        </Grid>
-      </div>
+            {children && (
+              <Grid.Row columns={1} style={childrenStyle}>
+                <Grid.Column>{children}</Grid.Column>
+              </Grid.Row>
+            )}
+
+            <NoSsr>
+              <C
+                examplePath={this.props.examplePath}
+                showCode={showCode}
+                onVisibilityChange={this.props.onVisibilityChange}
+                sourceCode={sourceCode}
+                renderHtml={renderHtml}
+                title={this.props.title}
+                visible={wasEverVisible}
+              />
+            </NoSsr>
+            {isActive && !error && <CarbonAdNative inverted={this.state.showCode} />}
+          </Grid>
+        </div>
+      </VisibilitySensor>
     )
-    {
-      /* </Visibility> */
-    }
   }
 }
 
